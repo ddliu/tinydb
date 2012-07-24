@@ -55,6 +55,11 @@ class TinyDB
 		return new TinyDBFactory($this, $model);
 	}
 	
+	/**
+	 * Create command
+	 * 
+	 * @return TinyDBCommand
+	 */
 	public function command(){
 		return new TinyDBCommand($this);
 	}
@@ -164,10 +169,279 @@ class TinyDB
 
 class TinyDBModel
 {
+	public static $table;
+	
+	/**
+	 * @todo Support multiple PK
+	 */
+	public static $pk = 'id';
+	
+	protected $_table;
+	
+	protected $_pk;
+	
+	protected $_db;
+	
+	protected $_data;
+	
+	protected $_dirty = array();
+	
+	protected $_isNew;
+	
+	/**
+	 * Translate class name to table name.
+	 * example:
+	 *  BlogPost => blog_post
+	 *  Acme\BlogPost => blog_post
+	 * @param string $class Class name
+	 * @return string
+	 */
+	static public function entityNameToDBName($class){
+		//namespace
+		if(false !== $pos = strrpos($class, '\\')){
+			$class = substr($class, $pos + 1);
+		}
+		
+		return strtolower(preg_replace('/(?<=[a-z])([A-Z])/', '_$1', $class));
+	}
+	
+	public function __construct($db, $data, $isNew = true){
+		$this->_db = $db;
+		$this->_data = $data;
+		if($isNew){
+			$this->_dirty = $data;
+		}
+		$this->_isNew = $isNew;
+	}
+	
+	public function setAttribute($attribute, $value){
+		if($attribute === 'table'){
+			$this->_table = $value;
+		}
+		elseif($attribute === 'pk'){
+			$this->_pk = $value;
+		}
+		
+		return $this;
+	}
+	
+	public function isNew(){
+		return $this->_isNew;
+	}
+	
+	public function isDirty(){
+		return !empty($this->_dirty);
+	}
+	
+	public function __get($key){
+		return isset($this->_data[$key])?$this->_data[$key]:null;
+	}
+	
+	public function __set($key, $value){
+		$this->_data[$key] = $value;
+		$this->_dirty[$key] = $value;
+	}
+	
+	public function __isset($key){
+		return isset($this->_data[$key]);
+	}
+	
+	public function __unset($key){
+		if(isset($this->_data[$key])){
+			unset($this->_data[$key]);
+		}
+	}
+	
+	public function save(){
+		if($this->beforeSave()){
+			if($this->isNew()){
+				$data = $this->_data;
+				
+				foreach($this->_dirty as $k => $v){
+					$data[$k] = $v;
+				}
+				
+				//insert
+				if(false !== $rst = $this->_db->command()->insert($this->_table, $data))
+				{
+
+					if($id = $this->_db->lastInsertId()){
+						$data[$this->_pk] = $id;
+					}
+					$this->_data = $data;
+					$this->_dirty = array();
+					$this->_isNew = false;
+					$this->afterSave();
+					return $rst;
+				}
+			}
+			else{
+				if($this->isDirty()){
+					//update
+					if(false !== $rst = $this->_db->command()->update($this->_table, $this->_dirty, $this->_pk.'=:pk', array(':pk' => $this->_data[$this->_pk]))){
+						$this->_data = array_merge($this->_data, $this->_dirty);
+						$this->_dirty = array();
+						$this->afterSave();
+						return $rst;
+					}
+				}
+			}
+		}
+		
+		return false;
+	}
+	
+	public function delete(){
+		if($this->beforeDelete()){
+			if(false !== $rst = $this->_db->command()->delete($this->_table, $this->_pk.'=:pk', array(':pk' => $this->_data[$this->_pk]))){
+				$this->_data = array();
+				$this->_dirty = array();
+				$this->afterDelete();
+				
+				return $rst;
+			}
+		}
+		
+		return false;
+	}
+	
+	protected function beforeSave(){
+		return true;
+	}
+	
+	protected function afterSave(){
+		return true;
+	}
+	
+	protected function beforeDelete(){
+		return true;
+	}
+	
+	protected function afterDelete(){
+		return true;
+	}
+	
 }
 
 class TinyDBFactory
 {
+	protected $db;
+	protected $modelClass;
+	protected $table;
+	protected $pk;
+	
+	public function __construct($db, $model, $pk = null){
+		$this->db = $db;
+		if($model[0] === '@'){
+			$this->modelClass = 'TinyDBModel';
+			$this->table = substr($model, 1);
+		}
+		else{
+			$this->modelClass = $model;
+			if(null !== $model::$table){
+				$this->table = $model::$table;
+			}
+			else{
+				$this->table = $model::entityNameToDBName($model);
+			}
+		}
+		if(null !== $pk){
+			$this->pk = $pk;
+		}
+		else{
+			$class = $this->modelClass;
+			$this->pk = $class::$pk;
+		}
+	}
+	
+	public function count($conditions = '', $params = array()){
+		return $this->db->command()->select('COUNT(*)')->from($this->table)->where($conditions, $params)->queryScalar();
+	}
+	
+	public function map($row){
+		$class = $this->modelClass;
+		$model = new $class($this->db, $row, false);
+		$model->setAttribute('table', $this->table)->setAttribute('pk', $this->pk);
+		return $model;
+	}
+	
+	public function mapModels($rows){
+		$rst = array();
+		foreach($rows as $row){
+			$rst[] = $this->map($row);
+		}
+		
+		return $rst;
+	}
+	
+	public function create($row = array()){
+		$class = $this->modelClass;
+		$model = new $class($this->db, $row);
+		$model->setAttribute('table', $this->table)->setAttribute('pk', $this->pk);
+		
+		return $model;
+	}
+	
+	/**
+	 * Find by PK
+	 * @param int $id
+	 */
+	public function find($id){
+		return $this->findOneBy($this->pk, $id);
+	}
+	
+	public function findAll(){
+		$rows = $this->db->command()->select()->from($this->table);
+		if(false === $rows){
+			return $rows;
+		}
+		
+		return $this->mapModels($rows);
+	}
+	
+	public function findOneBy($key, $value){
+		$row = $this->db->command()->select()->from($this->table)->where($key.'=:key', array(':key' => $value))->limit(1)->queryRow();
+		if(false === $row){
+			return false;
+		}
+		
+		return $this->map($row);
+	}
+	
+	public function findBy($key, $value,  $orderBy = null, $limit = null, $offset = null){
+		$cmd = $this->db->command()->select()->from($this->table)->where($key.'=:key', array(':key' => $value));
+		if($orderBy){
+			$cmd->orderBy($orderBy);
+		}
+		$rows = $cmd->limit($limit, $offset)->queryAll();
+		if(false === $rows){
+			return false;
+		}
+		else{
+			return $this->mapModels($rows);
+		}
+	}
+	
+	public function __call($name, $arguments){
+		//findByXXX/findAllByXXX
+		if(preg_match('#^find(One)?By(.+)$#', $name, $matches)){
+			$one = $matches[1] === 'One';
+			$findByKey = $matches[2];
+			if($findByKey === 'PK'){
+				$findByKey = $this->pk;
+			}
+			else{
+				$findByKey = TinyDBModel::entityNameToDBName($findByKey);
+			}
+			array_unshift($arguments, $findByKey);
+			if($one){
+				return call_user_func_array(array($this, 'findOneBy'), $arguments);
+			}
+			else{
+				return call_user_func_array(array($this, 'findBy'), $arguments);
+			}
+		}
+	}
 }
 
 /**
@@ -329,6 +603,9 @@ class TinyDBCommand
 	 */
 	public function buildConditions($conditions){
 		if(!is_array($conditions)){
+			if(null === $conditions){
+				return '';
+			}
 			return $conditions;
 		}
 		elseif($conditions === array()){
@@ -593,7 +870,7 @@ class TinyDBCommand
 		if(isset($query['join'])){
 			$sql .= "\n".(is_array($query['join'])?implode("\n", $query['join']):$query['join']);
 		}
-		if(isset($query['where'])){
+		if(isset($query['where']) && $query['where'] !== ''){
 			$sql .= "\nWHERE ".$query['where'];
 		}
 		if(isset($query['group'])){

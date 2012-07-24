@@ -73,4 +73,36 @@ class TinyDBTest extends PHPUnit_Framework_TestCase{
 		$rst = $cmd->reset()->select('COUNT(*)')->from('contact')->queryScalar();
 		$this->assertEquals($rst, 0);
 	}
+	
+	public function testModel(){
+		$factory = $this->db->factory('@contact');
+		
+		//insert
+		$model = $factory->create();
+		$model->name = 'test';
+		$model->email = 'test@test.com';
+		$rst = $model->save();
+		$this->assertEquals($rst, 1);
+		
+		$fetchModel = $factory->find(1);
+		$this->assertEquals($fetchModel->name, 'test');
+		
+		//update
+		$model->email = 'newemail@test.com';
+		$rst = $model->save();
+		$this->assertEquals($rst, 1);
+		
+		$fetchModel = $factory->findOneByName('test');
+		$this->assertEquals($fetchModel->email, 'newemail@test.com');
+		
+		//delete
+		$rst = $model->delete();
+		$this->assertEquals($rst, 1);
+		
+		$count = $factory->count();
+		$this->assertEquals($count, 0);
+	}
+	
+	public function testTransaction(){
+	}
 }
