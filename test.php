@@ -3,6 +3,14 @@ require dirname(__FILE__).'/tinydb.php';
 
 class TinyDBTest extends PHPUnit_Framework_TestCase{
 	protected $db;
+	
+	protected function getSampleUser($key = 1){
+		return array(
+			'name' => 'user'.$key,
+			'email' => 'user'.$key.'@example.com',
+		);
+	}
+	
 	protected function setup(){
 		$this->db = new TinyDB('sqlite::memory:');
 		$this->db->exec("
@@ -74,33 +82,62 @@ class TinyDBTest extends PHPUnit_Framework_TestCase{
 		$this->assertEquals($rst, 0);
 	}
 	
+	public function testFactory(){
+		$factory = $this->db->factory('@contact');
+		
+		//insert
+		$rst = $factory->insert($this->getSampleUser());
+		$this->assertEquals($rst, 1);
+		
+		//count
+		$total = $factory->count();
+		$this->assertEquals($total, 1);
+		
+		//select
+		$model = $factory->findOneByName('user1');
+		$this->assertEquals($model->email, 'user1@example.com');
+		
+		//update
+		$rst = $factory->updateByName('user1', array(
+			'email' => 'user1@mail.example.com',
+		));
+		$this->assertEquals($rst, 1);
+		
+		//select
+		$model = $factory->findOneByName('user1');
+		$this->assertEquals($model->email, 'user1@mail.example.com');
+		
+		//delete
+		$rst = $factory->deleteByName('user1');
+		$this->assertEquals($rst, 1);
+		
+		//count
+		$total = $factory->count();
+		$this->assertEquals($total, 0);
+	}
+	
 	public function testModel(){
 		$factory = $this->db->factory('@contact');
 		
 		//insert
-		$model = $factory->create();
-		$model->name = 'test';
-		$model->email = 'test@test.com';
+		$model = $factory->create($this->getSampleUser());
 		$rst = $model->save();
 		$this->assertEquals($rst, 1);
 		
 		$fetchModel = $factory->find(1);
-		$this->assertEquals($fetchModel->name, 'test');
+		$this->assertEquals($fetchModel->name, 'user1');
 		
 		//update
 		$model->email = 'newemail@test.com';
 		$rst = $model->save();
 		$this->assertEquals($rst, 1);
 		
-		$fetchModel = $factory->findOneByName('test');
+		$fetchModel = $factory->findOneByName('user1');
 		$this->assertEquals($fetchModel->email, 'newemail@test.com');
 		
 		//delete
 		$rst = $model->delete();
 		$this->assertEquals($rst, 1);
-		
-		$count = $factory->count();
-		$this->assertEquals($count, 0);
 	}
 	
 	public function testTransaction(){
