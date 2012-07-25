@@ -55,8 +55,8 @@ Light weight database layer on top of PDO
 	//find(findByPK)
 	$user = $factory->find(1);
 	
-	//findByXX 
-	$users = $factory->findByAge(30);
+	//findManyByXX 
+	$users = $factory->findManyByAge(30);
 	
 	//findOneByXX
 	$user = $factory->findOneByUsername('user1');
