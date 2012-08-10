@@ -33,6 +33,15 @@ class TinyDB
 		return $this->connections[$this->current];
 	}
 	
+	/**
+	 * Add a new connection configuration
+	 * 
+	 * @param string $name
+	 * @param string $dsn
+	 * @param string $username
+	 * @param string $password
+	 * @param array $options
+	 */
 	public function addConnection($name, $dsn, $username = null, $password = null, $options = array()){
 		//default driver options
 		static $defaultOptions = array(
@@ -45,12 +54,26 @@ class TinyDB
 			'password' => $password,
 			'options' => $options,
 		);
+		
+		return $this;
 	}
 	
-	public function switchConnection($name){
+	/**
+	 * Set current connection
+	 * @param string $name
+	 */
+	public function switchConnection($name = 'default'){
 		$this->current = $name;
+		
+		return $this;
 	}
 
+	/**
+	 * Create a model factory
+	 * 
+	 * @param string $model
+	 * @return TinyDBFactory
+	 */
 	public function factory($model){
 		return new TinyDBFactory($this, $model);
 	}
@@ -64,59 +87,106 @@ class TinyDB
 		return new TinyDBCommand($this);
 	}
 	
-	
+	/**
+	 * @link http://www.php.net/manual/en/pdo.getattribute.php
+	 */
 	public function getAttribute($attribute){
 		return $this->getPDO()->getAttribute($attribute);
 	}
 	
+	/**
+	 * @link http://www.php.net/manual/en/pdo.setattribute.php
+	 */
 	public function setAttribute($attribute, $value){
 		return $this->getPDO()->setAttribute($attribute, $value);
 	}
 	
+	/**
+	 * @link http://www.php.net/manual/en/pdo.prepare.php
+	 */
 	public function prepare(){
 		return call_user_func_array(array($this->getPDO(), 'prepare'), func_get_args());
 	}
 	
+	/**
+	 * @link http://www.php.net/manual/en/pdo.query.php
+	 */
 	public function query(){
 		return call_user_func_array(array($this->getPDO(), 'query'), func_get_args());
 	}
 	
+	/**
+	 * @link http://www.php.net/manual/en/pdo.exec.php
+	 */
 	public function exec(){
 		return call_user_func_array(array($this->getPDO(), 'exec'), func_get_args());
 	}
 	
+	/**
+	 * @link http://www.php.net/manual/en/pdo.begintransaction.php
+	 */
 	public function beginTransaction(){
 		return $this->getPDO()->beginTransaction();
 	}
 	
+	/**
+	 * @link http://www.php.net/manual/en/pdo.rollback.php
+	 */
 	public function rollBack(){
 		return $this->getPDO()->rollBack();
 	}
 	
+	/**
+	 * @link http://www.php.net/manual/en/pdo.commit.php
+	 */
 	public function commit(){
 		return $this->getPDO()->commit();
 	}
 	
+	/**
+	 * @link http://www.php.net/manual/en/pdo.intransaction.php
+	 */
 	public function inTransaction(){
 		return $this->getPDO()->inTransaction();
 	}
 	
+	/**
+	 * @link http://www.php.net/manual/en/pdo.lastinsertid.php
+	 */
 	public function lastInsertId(){
 		return call_user_func_array(array($this->getPDO(), 'lastInsertId'), func_get_args());
 	}
 	
+	/**
+	 * @link http://www.php.net/manual/en/pdo.quote.php
+	 */
 	public function quote(){
 		return call_user_func_array(array($this->getPDO(), 'quote'), func_get_args());
 	}
 	
+	/**
+	 * Quote table name
+	 * @param string $name
+	 * @return string;
+	 */
 	public function quoteTable($name){
 		return $this->quoteIdentifier($name);
 	}
 	
+	/**
+	 * Quote column name
+	 * @param string $name
+	 * @return string;
+	 */
 	public function quoteColumn($name){
 		return $this->quoteIdentifier($name);
 	}
 	
+	/**
+	 * Quote table or column
+	 * @param string $name
+	 * @return string
+	 */
 	public function quoteIdentifier($name){
 		$quote = null;
 		switch($this->getAttribute(PDO::ATTR_DRIVER_NAME)){
@@ -167,13 +237,13 @@ class TinyDB
 	}
 }
 
+/**
+ * Model
+ */
 class TinyDBModel
 {
 	public static $table;
 	
-	/**
-	 * @todo Support multiple PK
-	 */
 	public static $pk = 'id';
 	
 	protected $_table;
@@ -182,7 +252,9 @@ class TinyDBModel
 	
 	protected $_db;
 	
-	protected $_data;
+	protected $_data = array();
+	
+	protected $_safe;
 	
 	protected $_dirty = array();
 	
@@ -205,21 +277,45 @@ class TinyDBModel
 		return strtolower(preg_replace('/(?<=[a-z])([A-Z])/', '_$1', $class));
 	}
 	
-	public function __construct($db, $data, $isNew = true){
+	/**
+	 * Model constructor
+	 * 
+	 * @param TinyDB $db
+	 * @param array $data
+	 * @boolean $isNew
+	 */
+	public function __construct($db, $data = array(), $isNew = true){
 		$this->_db = $db;
-		$this->_data = $data;
 		if($isNew){
 			$this->_dirty = $data;
+		}
+		else{
+			$this->_data = $data;
 		}
 		$this->_isNew = $isNew;
 	}
 	
+	/**
+	 * Set attribute
+	 */
 	public function setAttribute($attribute, $value){
 		if($attribute === 'table'){
 			$this->_table = $value;
 		}
 		elseif($attribute === 'pk'){
 			$this->_pk = $value;
+		}
+		
+		return $this;
+	}
+	
+	/**
+	 * Set attributes(table, pk...)
+	 * @param array $attributes
+	 */
+	public function setAttributes($attributes){
+		foreach($attributes as $k => $v){
+			$this->setAttribute($k, $v);
 		}
 		
 		return $this;
@@ -233,39 +329,106 @@ class TinyDBModel
 		return !empty($this->_dirty);
 	}
 	
+	/**
+	 * Get raw data
+	 * @param string $key
+	 * @return mixed
+	 */
+	public function getRaw($key = null){
+		if(null === $key){
+			return $this->_data;
+		}
+		else{
+			return isset($this->_data[$key])?$this->_data[$key]:null;
+		}
+	}
+	
+	/**
+	 * Get data
+	 * @param string $key
+	 * @return mixed Find in dirty data first, return all data if key is not specified
+	 */
+	public function get($key = null){
+		if(null === $key){
+			return array_merge($this->_data, $this->_dirty);
+		}
+		else{
+			if(isset($this->_dirty[$key])){
+				return $this->_dirty[$key];
+			}
+			elseif(isset($this->_data[$key])){
+				return $this->_data[$key];
+			}
+			else{
+				return null;
+			}
+		}
+	}
+	
 	public function __get($key){
-		return isset($this->_data[$key])?$this->_data[$key]:null;
+		return $this->get($key);
+	}
+	
+	/**
+	 * Set data
+	 * @param string|array $key
+	 * @param mixed $value
+	 */
+	public function set($key, $value = null){
+		if(is_array($key)){
+			$this->_dirty = $key;
+		}
+		else{
+			$this->_dirty[$key] = $value;
+		}
+		
+		return $this;
 	}
 	
 	public function __set($key, $value){
-		$this->_data[$key] = $value;
 		$this->_dirty[$key] = $value;
 	}
 	
 	public function __isset($key){
-		return isset($this->_data[$key]);
+		return isset($this->_dirty[$key]) || isset($this->_data[$key]);
 	}
 	
 	public function __unset($key){
-		if(isset($this->_data[$key])){
-			unset($this->_data[$key]);
+		if(isset($this->_dirty[$key])){
+			unset($this->_dirty[$key]);
 		}
 	}
 	
+	protected function buildPKConditions(){
+		if(is_string($this->_pk)){
+			$pks = array($this->_pk);
+		}
+		else{
+			$pks = $this->_pk;
+		}
+		$params = array();
+		foreach($pks as $k => $pk){
+			$pks[$k] = $pk.'=:pk'.$k;
+			$params[':pk'.$k] = $this->_data[$pk];
+		}
+		array_unshift($pks, 'AND');
+		
+		return array($pks, $params);
+	}
+	
+	/**
+	 * Save modified data to db
+	 * @return int|boolean
+	 */
 	public function save(){
 		if($this->beforeSave()){
 			if($this->isNew()){
-				$data = $this->_data;
-				
-				foreach($this->_dirty as $k => $v){
-					$data[$k] = $v;
-				}
+				$data = $this->_dirty;
 				
 				//insert
 				if(false !== $rst = $this->_db->command()->insert($this->_table, $data))
 				{
-
-					if($id = $this->_db->lastInsertId()){
+					if(is_string($this->_pk) && $id = $this->_db->lastInsertId()){
 						$data[$this->_pk] = $id;
 					}
 					$this->_data = $data;
@@ -278,7 +441,8 @@ class TinyDBModel
 			else{
 				if($this->isDirty()){
 					//update
-					if(false !== $rst = $this->_db->command()->update($this->_table, $this->_dirty, $this->_pk.'=:pk', array(':pk' => $this->_data[$this->_pk]))){
+					$pkConditions = $this->buildPKConditions();
+					if(false !== $rst = $this->_db->command()->update($this->_table, $this->_dirty, $pkConditions[0], $pkConditions[1])){
 						$this->_data = array_merge($this->_data, $this->_dirty);
 						$this->_dirty = array();
 						$this->afterSave();
@@ -291,9 +455,14 @@ class TinyDBModel
 		return false;
 	}
 	
+	/**
+	 * Delete model
+	 * @return int|boolean
+	 */
 	public function delete(){
 		if($this->beforeDelete()){
-			if(false !== $rst = $this->_db->command()->delete($this->_table, $this->_pk.'=:pk', array(':pk' => $this->_data[$this->_pk]))){
+			$pkConditions = $this->buildPKConditions();
+			if(false !== $rst = ($this->isNew() || $this->_db->command()->delete($this->_table, $pkConditions[0], $pkConditions[1]))){
 				$this->_data = array();
 				$this->_dirty = array();
 				$this->afterDelete();
@@ -323,6 +492,9 @@ class TinyDBModel
 	
 }
 
+/**
+ * Model factory
+ */
 class TinyDBFactory
 {
 	protected $db;
@@ -354,10 +526,6 @@ class TinyDBFactory
 		}
 	}
 	
-	public function count($conditions = '', $params = array()){
-		return $this->db->command()->select('COUNT(*)')->from($this->table)->where($conditions, $params)->queryScalar();
-	}
-	
 	public function map($row){
 		$class = $this->modelClass;
 		$model = new $class($this->db, $row, false);
@@ -382,14 +550,59 @@ class TinyDBFactory
 		return $model;
 	}
 	
+	protected function buildPKConditions($_pk, $_data){
+		if(is_string($_pk)){
+			$pks = array($_pk);
+			if(!is_array($_data)){
+				$_data = array($_pk => $_data);
+			}
+		}
+		else{
+			$pks = $_pk;
+		}
+		$params = array();
+		foreach($pks as $k => $pk){
+			$pks[$k] = $pk.'=:pk'.$k;
+			$params[':pk'.$k] = $_data[$pk];
+		}
+		array_unshift($pks, 'AND');
+		
+		return array($pks, $params);
+	}
+	
+	/**
+	 * Count with conditions
+	 * 
+	 * @param string|array $conditions
+	 * @param array $params
+	 * @return integer
+	 */
+	public function count($conditions = '', $params = array()){
+		return $this->db->command()->select('COUNT(*)')->from($this->table)->where($conditions, $params)->queryScalar();
+	}
+	
+	/**
+	 * Count by key
+	 * 
+	 * @param string $key
+	 * @param mixed $value
+	 * @return integer
+	 */
+	public function countBy($key, $value){
+		return $this->count($key.'=:key', array(':key' => $value));
+	}
+	
 	/**
 	 * Find by PK
 	 * @param int $id
 	 */
-	public function find($id){
-		return $this->findOneBy($this->pk, $id);
+	public function find($pk){
+		return $this->findByPK($pk);
 	}
 	
+	/**
+	 * Find all
+	 */
 	public function findAll(){
 		$rows = $this->db->command()->select()->from($this->table);
 		if(false === $rows){
@@ -399,17 +612,56 @@ class TinyDBFactory
 		return $this->mapModels($rows);
 	}
 	
-	public function findOneBy($key, $value){
-		$row = $this->db->command()->select()->from($this->table)->where($key.'=:key', array(':key' => $value))->limit(1)->queryRow();
+	/**
+	 * Find one model with conditions
+	 * 
+	 * @param string|array $conditions
+	 * @param array $params
+	 * @return boolean|TinyDBModel
+	 */
+	public function findOne($conditions, $params = array()){
+		$row = $this->db->command()->select()->from($this->table)->where($conditions, $params)->limit(1)->queryRow();
 		if(false === $row){
 			return false;
 		}
 		
 		return $this->map($row);
 	}
+		
+	/**
+	 * Find one model by key
+	 * 
+	 * @param string $key
+	 * @param mixed $value
+	 * @return boolean|TinyDBModel
+	 */
+	public function findOneBy($key, $value){
+		return $this->findOne($key.'=:key', array(':key' => $value));
+	}
 	
-	public function findBy($key, $value,  $orderBy = null, $limit = null, $offset = null){
-		$cmd = $this->db->command()->select()->from($this->table)->where($key.'=:key', array(':key' => $value));
+	/**
+	 * Find one model by primary key
+	 * 
+	 * @param string|array $pk
+	 * @return boolean|TinyDBModel
+	 */
+	public function findByPK($pk){
+		$pkConditions = $this->buildPKConditions($this->pk, $pk);
+		return $this->findOne($pkConditions[0], $pkConditions[1]);
+	}
+	
+	/**
+	 * Find many models with conditions
+	 * 
+	 * @param string|array $conditions
+	 * @param array $params
+	 * @param string|array $orderBy
+	 * @param int $limit
+	 * @param int $offset
+	 * @return boolean|array
+	 */
+	public function findMany($conditions = '', $params = array(), $orderBy = null, $limit = null, $offset = null){
+		$cmd = $this->db->command()->select($conditions, $params)->from($this->table)->where();
 		if($orderBy){
 			$cmd->orderBy($orderBy);
 		}
@@ -422,24 +674,126 @@ class TinyDBFactory
 		}
 	}
 	
+	/**
+	 * Find many models with by key
+	 * 
+	 * @param string $key
+	 * @param mixed $value
+	 * @param string|array $orderBy
+	 * @param int $limit
+	 * @param int $offset
+	 * @return boolean|array
+	 */
+	public function findManyBy($key, $value,  $orderBy = null, $limit = null, $offset = null){
+		return $this->findMany($key.'=:key', array(':key' => $value), $orderBy, $limit, $offset);
+	}
+	
+	/**
+	 * Update table with condition
+	 * 
+	 * @param array $values
+	 * @param string|array $conditions
+	 * @param array $params
+	 * @return int|boolean
+	 */
+	public function update($values, $conditions = '', $params = array()){
+		return $this->db->command()->update($this->table, $values, $conditions, $params);
+	}
+	
+	/**
+	 * Update table by key
+	 * 
+	 * @param string $key
+	 * @param mixed $value
+	 * @param array $values
+	 * @return int|boolean
+	 */
+	public function updateBy($key, $value, $values){
+		return $this->update($values, $key.'=:key', array(':key' => $value));
+	}
+	
+	/**
+	 * Update table by primary key
+	 * @param string|array $pk
+	 * @param array $values
+	 * @return int|boolean
+	 */
+	public function updateByPK($pk, $values){
+		$pkConditions = $this->buildPKConditions($this->pk, $pk);
+		return $this->update($values, $pkConditions[0], $pkConditions[1]);
+	}
+	
+	/**
+	 * Insert
+	 * 
+	 * @param array $values
+	 * @return int|boolean
+	 */
+	public function insert($values){
+		return $this->db->command()->insert($this->table, $values);
+	}
+	
+	/**
+	 * Delete with condition
+	 * 
+	 * @param string|array $conditioins
+	 * @param array $params
+	 * @return int|boolean
+	 */
+	public function delete($conditions = '', $params = array()){
+		return $this->db->command()->delete($this->table, $conditions, $params);
+	}
+	
+	/**
+	 * Delete by key
+	 * 
+	 * @param string $key
+	 * @param mixed $value
+	 * @return int|boolean
+	 */
+	public function deleteBy($key, $value){
+		return $this->delete($key.'=:key', array(':key' => $value));
+	}
+	
+	/**
+	 * Delete by primary key
+	 * 
+	 * @param string|array $pk
+	 * @return int|boolean
+	 */
+	public function deleteByPK($pk){
+		$pkConditions = $this->buildPKConditions($this->pk, $pk);
+		return $this->delete($pkConditions[0], $pkConditions[1]);
+	}
+	
+	/**
+	 * Override __call magic method to provide many helper methods
+	 * 
+	 * @param string $name
+	 * @param array $arguments
+	 * @return mixed
+	 */
 	public function __call($name, $arguments){
-		//findByXXX/findAllByXXX
-		if(preg_match('#^find(One)?By(.+)$#', $name, $matches)){
+		//findOneByXXX/findManyByXXX
+		if(preg_match('#^find(One|Many)By(.+)$#', $name, $matches)){
 			$one = $matches[1] === 'One';
-			$findByKey = $matches[2];
-			if($findByKey === 'PK'){
-				$findByKey = $this->pk;
-			}
-			else{
-				$findByKey = TinyDBModel::entityNameToDBName($findByKey);
-			}
+			$findByKey = TinyDBModel::entityNameToDBName($matches[2]);
 			array_unshift($arguments, $findByKey);
 			if($one){
 				return call_user_func_array(array($this, 'findOneBy'), $arguments);
 			}
 			else{
-				return call_user_func_array(array($this, 'findBy'), $arguments);
+				return call_user_func_array(array($this, 'findManyBy'), $arguments);
 			}
+		}
+		elseif(preg_match('#^(update|delete|count)By(.+)$#', $name, $matches)){
+			$action = $matches[1];
+			$actionByKey = TinyDBModel::entityNameToDBName($matches[2]);
+			array_unshift($arguments, $actionByKey);
+			return call_user_func_array(array($this, $action.'By'), $arguments); 
+		}
+		else{
+			throw new TinyDBException(sprintf('Helper method "%s" does not exist', $name));
 		}
 	}
 }
@@ -619,7 +973,7 @@ class TinyDBCommand
 			for($i = 1; $i < $n; $i++){
 				$condition = $this->buildConditions($conditions[$i]);
 				if('' !== $condition){
-					$parts[] = '('.$condition.')';
+					$result[] = '('.$condition.')';
 				}
 			}
 			if($result === array()){
