@@ -604,7 +604,7 @@ class TinyDBFactory
 	 * Find all
 	 */
 	public function findAll(){
-		$rows = $this->db->command()->select()->from($this->table);
+		$rows = $this->db->command()->select()->from($this->table)->queryAll();
 		if(false === $rows){
 			return $rows;
 		}
