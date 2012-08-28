@@ -242,13 +242,15 @@ class TinyDB
  */
 class TinyDBModel
 {
-	public static $table;
+	### Model defination ###
 	
-	public static $pk = 'id';
+	private $_table;
 	
-	protected $_table;
+	private $_pk;
 	
-	protected $_pk;
+	private $_relations;
+	
+	### end ###
 	
 	protected $_db;
 	
@@ -259,6 +261,60 @@ class TinyDBModel
 	protected $_dirty = array();
 	
 	protected $_isNew;
+	
+	/**
+	 * Model configuration
+	 * 
+	 * Sub classes should extend this static method
+	 * @return array
+	 */
+	public static function config(){
+		return array(
+			//'table' => 'table',
+			'pk' => 'id',
+			//'relations' => array(),
+		);
+	}
+	
+	/**
+	 * Get model configuration
+	 * 
+	 * @param string $key
+	 * @return mixed
+	 */
+	final public static function getConfig($key = null){
+		$config = static::config();
+		if(null === $key){
+			return $config;
+		}
+		elseif(isset($config[$key])){
+			return $config[$key];
+		}
+		else{
+			return null;
+		}
+	}
+	
+	/**
+	 * Get model table
+	 */
+	public function getTable(){
+		return $this->_table;
+	}
+
+	/**
+	 * Get model pk
+	 */
+	public function getPK(){
+		return $this->_pk;
+	}
+		
+	/**
+	 * Get model relations
+	 */
+	public function getRelations(){
+		return $this->_relations;
+	}
 	
 	/**
 	 * Translate class name to table name.
@@ -286,6 +342,7 @@ class TinyDBModel
 	 */
 	public function __construct($db, $data = array(), $isNew = true){
 		$this->_db = $db;
+		
 		if($isNew){
 			$this->_dirty = $data;
 		}
@@ -293,6 +350,9 @@ class TinyDBModel
 			$this->_data = $data;
 		}
 		$this->_isNew = $isNew;
+		
+		//this requires PHP 5.3
+		$this->setAttributes(static::config());
 	}
 	
 	/**
@@ -304,6 +364,9 @@ class TinyDBModel
 		}
 		elseif($attribute === 'pk'){
 			$this->_pk = $value;
+		}
+		elseif($attribute === 'relations'){
+			$this->_relations = $value;
 		}
 		
 		return $this;
@@ -366,7 +429,149 @@ class TinyDBModel
 	}
 	
 	public function __get($key){
+		$relations = $this->getRelations();
+		if(isset($relations[$key])){
+			return $this->getWithRelation($key);
+		}
 		return $this->get($key);
+	}
+	
+	public function getWithRelation($name){
+		$relations = $this->getRelations();
+		if(isset($relations[$name])){
+			$relation = $relations[$name];
+			if($relation['relation'] === 'OTO'){
+				return $this->getOneToOne($relation['target'], isset($relation['key'])?$relation['key']:null, isset($relation['target_key'])?$relation['target_key']:null);
+			}
+			elseif($relation['relation'] == 'OTM'){
+				return $this->getOneToMany($relation['target'], isset($relation['key'])?$relation['key']:null, isset($relation['target_key'])?$relation['target_key']:null);
+			}
+			elseif($relation['relation'] == 'MTO'){
+				return $this->getManyToOne($relation['target'], isset($relation['key'])?$relation['key']:null, isset($relation['target_key'])?$relation['target_key']:null);
+			}
+			elseif($relation['relation'] == 'MTM'){
+				return $this->getManyToMany($relation['target'], $relation['through'], isset($relation['key'])?$relation['key']:null, isset($relation['target_key'])?$relation['target_key']:null);
+			}
+			else{
+				throw new TinyDBException('Invalid relation "'.$relation['relation'].'"');
+			}
+		}
+		else{
+			return false;
+		}
+	}
+	
+	/**
+	 * Has one
+	 * 
+	 * @param string $target target model or @table
+	 * @param string $key
+	 * @param string $target_key
+	 * 
+	 * @return TinyDBModel
+	 */
+	public function getOneToOne($target, $key = null, $target_key = null){
+		$factory = $this->_db->factory($target);
+		if(null === $key){
+			$key = $this->getPK();
+		}
+		if(null === $target_key){
+			$target_key = $factory->getPK();
+		}
+		
+		return $factory->findOneBy($target_key, $this->get($key));
+	}
+	
+	/**
+	 * Has many
+	 * 
+	 * @param string $target
+	 * @param string $key
+	 * @param string $target_key
+	 * @return array
+	 */
+	public function getOneToMany($target, $key = null, $target_key = null){
+		$factory = $this->_db->factory($target);
+		if(null === $key){
+			$key = $this->getPK();
+		}
+		if(null === $target_key){
+			$target_key = $key;
+		}
+		
+		return $factory->findManyBy($target_key, $this->get($key));
+	}
+	
+	/**
+	 * Belongs to
+	 * @param string $target
+	 * @param string $key
+	 * @param string $target_key
+	 * 
+	 * @return TinyDBModel
+	 */
+	public function getManyToOne($target, $key = null, $target_key = null){
+		$factory = $this->_db->factory($target);
+		if(null === $target_key){
+			$target_key = $factory->getPK();
+		}
+		if(null === $key){
+			$key = $target_key;
+		}
+		
+		return $factory->findOneBy($target_key, $this->get($key));
+	}
+	
+	/**
+	 * Many to many
+	 * 
+	 * @param string $target
+	 * @param string $through
+	 * @param string $key
+	 * @param string $target_key
+	 * @return array
+	 */
+	public function getManyToMany($target, $through, $key = null, $target_key = null){
+		$factory = $this->_db->factory($target);
+
+		if(null === $key){
+			$key = $this->getPK();
+		}
+		if(null === $target_key){
+			$target_key = $factory->getPK();
+		}
+		
+		$through = $this->parseThrough($through);
+		if(!$through[1]){
+			$through[1] = $key;
+		}
+		if(!$through[2]){
+			$through[2] = $target_key;
+		}
+		
+		$rows = $this->_db->command()
+			->select('t.*')
+			->from($factory->getTable().' t')
+			->leftJoin($through[0].' m', 'm.'.$through[2].'=t.'.$target_key)
+			->where('m.'.$through[1].'=:value', array(
+				':value' => $this->get($key)
+			))
+		->queryAll();
+		
+		if(false === $rows){
+			return false;
+		}
+		
+		return $factory->mapModels($rows);
+	}
+	
+	protected function parseThrough($through){
+		$through = explode(',', $through);
+		$table = trim($through[0]);
+		$key = isset($through[1])?trim($through[1]):null;
+		$target_key = isset($through[2])?trim($through[2]):null;
+		
+		return array($table, $key, $target_key);
 	}
 	
 	/**
@@ -400,11 +605,12 @@ class TinyDBModel
 	}
 	
 	protected function buildPKConditions(){
-		if(is_string($this->_pk)){
-			$pks = array($this->_pk);
+		$pk = $this->getPK();
+		if(is_string($pk)){
+			$pks = array($pk);
 		}
 		else{
-			$pks = $this->_pk;
+			$pks = $pk;
 		}
 		$params = array();
 		foreach($pks as $k => $pk){
@@ -426,10 +632,10 @@ class TinyDBModel
 				$data = $this->_dirty;
 				
 				//insert
-				if(false !== $rst = $this->_db->command()->insert($this->_table, $data))
+				if(false !== $rst = $this->_db->command()->insert($this->getTable(), $data))
 				{
-					if(is_string($this->_pk) && $id = $this->_db->lastInsertId()){
-						$data[$this->_pk] = $id;
+					if(is_string($this->getPK()) && $id = $this->_db->lastInsertId()){
+						$data[$this->getPK()] = $id;
 					}
 					$this->_data = $data;
 					$this->_dirty = array();
@@ -442,7 +648,7 @@ class TinyDBModel
 				if($this->isDirty()){
 					//update
 					$pkConditions = $this->buildPKConditions();
-					if(false !== $rst = $this->_db->command()->update($this->_table, $this->_dirty, $pkConditions[0], $pkConditions[1])){
+					if(false !== $rst = $this->_db->command()->update($this->getTable(), $this->_dirty, $pkConditions[0], $pkConditions[1])){
 						$this->_data = array_merge($this->_data, $this->_dirty);
 						$this->_dirty = array();
 						$this->afterSave();
@@ -462,7 +668,7 @@ class TinyDBModel
 	public function delete(){
 		if($this->beforeDelete()){
 			$pkConditions = $this->buildPKConditions();
-			if(false !== $rst = ($this->isNew() || $this->_db->command()->delete($this->_table, $pkConditions[0], $pkConditions[1]))){
+			if(false !== $rst = ($this->isNew() || $this->_db->command()->delete($this->getTable(), $pkConditions[0], $pkConditions[1]))){
 				$this->_data = array();
 				$this->_dirty = array();
 				$this->afterDelete();
@@ -510,8 +716,8 @@ class TinyDBFactory
 		}
 		else{
 			$this->modelClass = $model;
-			if(null !== $model::$table){
-				$this->table = $model::$table;
+			if(null !== $model::getConfig('table')){
+				$this->table = $model::getConfig('table');
 			}
 			else{
 				$this->table = $model::entityNameToDBName($model);
@@ -522,8 +728,16 @@ class TinyDBFactory
 		}
 		else{
 			$class = $this->modelClass;
-			$this->pk = $class::$pk;
+			$this->pk = $class::getConfig('pk');
 		}
+	}
+	
+	public function getPK(){
+		return $this->pk;
+	}
+	
+	public function getTable(){
+		return $this->table;
 	}
 	
 	public function map($row){
@@ -550,15 +764,15 @@ class TinyDBFactory
 		return $model;
 	}
 	
-	protected function buildPKConditions($_pk, $_data){
-		if(is_string($_pk)){
-			$pks = array($_pk);
+	protected function buildPKConditions($pk, $_data){
+		if(is_string($pk)){
+			$pks = array($pk);
 			if(!is_array($_data)){
-				$_data = array($_pk => $_data);
+				$_data = array($pk => $_data);
 			}
 		}
 		else{
-			$pks = $_pk;
+			$pks = $pk;
 		}
 		$params = array();
 		foreach($pks as $k => $pk){
@@ -661,7 +875,7 @@ class TinyDBFactory
 	 * @return boolean|array
 	 */
 	public function findMany($conditions = '', $params = array(), $orderBy = null, $limit = null, $offset = null){
-		$cmd = $this->db->command()->select($conditions, $params)->from($this->table)->where();
+		$cmd = $this->db->command()->select()->from($this->table)->where($conditions, $params);
 		if($orderBy){
 			$cmd->orderBy($orderBy);
 		}
@@ -822,7 +1036,7 @@ class TinyDBCommand
 		if(preg_match('#^(.*?)(?i:\s+as\s+|\s+)(.*)$#', $entry, $matches)){
 			return array(
 				$matches[1],
-				$matches[3],
+				$matches[2],
 			);
 		}
 		else{
@@ -900,7 +1114,6 @@ class TinyDBCommand
 			if(!is_array($fields)){
 				$fields = $this->splitParts($fields);
 			}
-			
 			foreach($fields as $k => $field){
 				if(false === strpos($field, '(')){
 					if($alias = $this->matchAlias($field)){
@@ -1023,7 +1236,7 @@ class TinyDBCommand
 			return implode($andor, $result);
 		}
 		else{
-			return '';
+			throw new TinyDBException('Invalid operator "'.$operator.'"');
 		}
 	}
 	
@@ -1099,12 +1312,11 @@ class TinyDBCommand
 	protected function anyJoin($type, $table, $conditions = '', $params = array()){
 		$this->mergeParams($params);
 		if($alias = $this->matchAlias($table)){
-			$table = $this->db->quoteTable($alias[0]).' AS '.$alias[1];
+			$table = $this->db->quoteTable($alias[0]).' AS '.$this->db->quoteTable($alias[1]);
 		}
 		else{
 			$table = $this->db->quoteTable($table);
 		}
-		
 		$conditions = $this->buildConditions($conditions);
 		if('' !== $conditions){
 			$conditions = ' ON '.$conditions;
