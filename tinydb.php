@@ -60,7 +60,7 @@ class TinyDB
 			'username' => $username,
 			'password' => $password,
 			'prefix' => $prefix,
-			'options' => $options,
+			'options' => array_merge($defaultOptions, $options),
 		);
 		
 		return $this;
