@@ -172,6 +172,14 @@ class TinyDB
 		return call_user_func_array(array($this->getPDO(), 'quote'), func_get_args());
 	}
 	
+	public function errorCode(){
+		return call_user_func_array(array($this->getPDO(), 'errorCode'), func_get_args());
+	}
+	
+	public function errorInfo(){
+		return call_user_func_array(array($this->getPDO(), 'errorInfo'), func_get_args());
+	}
+	
 	/**
 	 * Quote table name
 	 * @param string $name
@@ -1514,7 +1522,10 @@ class TinyDBCommand
 	protected function beginQuery($params = array()){
 		$params = array_merge($this->params, $params);
 		$this->prepare();
-		$this->statement->execute($params);
+		if(false === $this->statement->execute($params)){
+			$info = $this->statement->errorInfo();
+			throw new TinyDBException(sprintf('Statement error #%s: %s', $info[0], $info[2]));
+		}
 	}
 	
 	/**
