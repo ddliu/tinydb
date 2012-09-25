@@ -707,6 +707,7 @@ class TinyDBFactory
 	protected $modelClass;
 	protected $table;
 	protected $pk;
+	protected $with;
 	
 	public function __construct($db, $model, $pk = null){
 		$this->db = $db;
@@ -732,14 +733,44 @@ class TinyDBFactory
 		}
 	}
 	
+	/**
+	 * PK getter
+	 */
 	public function getPK(){
 		return $this->pk;
 	}
 	
+	/**
+	 * Table getter
+	 */
 	public function getTable(){
 		return $this->table;
 	}
 	
+	/**
+	 * @todo fetch related data together
+	 */
+	public function with($with){
+		$this->with = $with;
+		
+		return $this;
+	}
+	
+	public function buildWith(){
+		$with = $this->with;
+		$columns = explode(',', $with);
+		foreach($columns as $column){
+			if(strpos($column, '.')
+		}
+		$this->with = null;
+	}
+	
+	/**
+	 * Map array to model
+	 * 
+	 * @param array $row
+	 * @return TinyDBModel
+	 */
 	public function map($row){
 		$class = $this->modelClass;
 		$model = new $class($this->db, $row, false);
@@ -747,6 +778,12 @@ class TinyDBFactory
 		return $model;
 	}
 	
+	/**
+	 * Map data rows to model array
+	 * 
+	 * @param array $rows
+	 * @return array
+	 */
 	public function mapModels($rows){
 		$rst = array();
 		foreach($rows as $row){
@@ -756,6 +793,12 @@ class TinyDBFactory
 		return $rst;
 	}
 	
+	/**
+	 * Create a fresh model from array
+	 * 
+	 * @param array $row
+	 * @param TinyDBModel
+	 */
 	public function create($row = array()){
 		$class = $this->modelClass;
 		$model = new $class($this->db, $row);
@@ -764,6 +807,12 @@ class TinyDBFactory
 		return $model;
 	}
 	
+	/**
+	 * Build PK condition(multiple pk is also supported)
+	 * @param string|array $pk
+	 * @param mixed $_data
+	 * @return array
+	 */
 	protected function buildPKConditions($pk, $_data){
 		if(is_string($pk)){
 			$pks = array($pk);
