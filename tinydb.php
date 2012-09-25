@@ -48,11 +48,19 @@ class TinyDB
 			PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
 			//PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
 		);
+		if(isset($options['prefix'])){
+			$prefix = $options['prefix'];
+			unset($options['prefix']);
+		}
+		else{
+			$prefix = '';
+		}
 		$this->configs[$name] = array(
 			'dsn' => $dsn,
 			'username' => $username,
 			'password' => $password,
-			'options' => $options,
+			'prefix' => $prefix,
+			'options' => array_merge($defaultOptions, $options),
 		);
 		
 		return $this;
@@ -164,6 +172,14 @@ class TinyDB
 		return call_user_func_array(array($this->getPDO(), 'quote'), func_get_args());
 	}
 	
+	public function errorCode(){
+		return call_user_func_array(array($this->getPDO(), 'errorCode'), func_get_args());
+	}
+	
+	public function errorInfo(){
+		return call_user_func_array(array($this->getPDO(), 'errorInfo'), func_get_args());
+	}
+	
 	/**
 	 * Quote table name
 	 * @param string $name
@@ -234,6 +250,14 @@ class TinyDB
 				
 				return $sql;
 		}
+	}
+
+	public function getPrefix(){
+		return $this->configs[$this->current]['prefix'];
+	}
+	
+	public function fixPrefix($sql){
+		
 	}
 }
 
@@ -1514,6 +1538,9 @@ class TinyDBCommand
 	 * @param string $sql
 	 */
 	public function setSql($sql){
+		if('' !== $prefix = $this->db->getPrefix()){
+			$sql = preg_replace('#{{(.*?)}}#', $prefix.'\1', $sql);
+		}
 		$this->sql = $sql;
 		
 		return $this;
@@ -1527,7 +1554,7 @@ class TinyDBCommand
 	public function getSql(){
 		if(null === $this->sql){
 			if(!empty($this->query)){
-				$this->sql = $this->buildQuery();
+				$this->setSql($this->buildQuery());
 			}
 			else{
 				return false;
@@ -1544,7 +1571,10 @@ class TinyDBCommand
 	protected function beginQuery($params = array()){
 		$params = array_merge($this->params, $params);
 		$this->prepare();
-		$this->statement->execute($params);
+		if(false === $this->statement->execute($params)){
+			$info = $this->statement->errorInfo();
+			throw new TinyDBException(sprintf('Statement error #%s: %s', $info[0], $info[2]));
+		}
 	}
 	
 	/**

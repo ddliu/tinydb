@@ -12,9 +12,9 @@ class TinyDBTest extends PHPUnit_Framework_TestCase{
 	}
 	
 	protected function setup(){
-		$this->db = new TinyDB('sqlite::memory:');
+		$this->db = new TinyDB('sqlite::memory:', '', '', array('prefix' => 'pre_'));
 		$this->db->exec("
-				CREATE TABLE IF NOT EXISTS contact (
+				CREATE TABLE IF NOT EXISTS pre_contact (
 					id INTEGER PRIMARY KEY, 
 					name TEXT, 
 					email TEXT 
@@ -26,35 +26,35 @@ class TinyDBTest extends PHPUnit_Framework_TestCase{
 		//show table
 		$query = $this->db->query("SELECT * FROM sqlite_master WHERE type='table'");
 		$row = $query->fetch(PDO::FETCH_ASSOC);
-		$this->assertEquals($row['name'], 'contact');
+		$this->assertEquals($row['name'], 'pre_contact');
 		
 		//insert
-		$rst = $this->db->exec("INSERT INTO contact (name, email) VALUES ('test', 'test@test.com')");
+		$rst = $this->db->exec("INSERT INTO pre_contact (name, email) VALUES ('test', 'test@test.com')");
 		$this->assertEquals($rst, 1);
 		
 		//count
-		$query = $this->db->query("SELECT COUNT(*) FROM contact");
+		$query = $this->db->query("SELECT COUNT(*) FROM pre_contact");
 		$this->assertEquals($query->fetchColumn(), 1);
 	}
 	
 	public function testCommand(){
 		$cmd = $this->db->command();
 		//insert
-		$rst = $cmd->insert('contact', array(
+		$rst = $cmd->insert('{{contact}}', array(
 			'name' => 'test',
 			'email' => 'test@test.com',
 		));
 		$this->assertEquals($rst, 1);
 		
-		$total = $cmd->reset()->select('COUNT(*)')->from('contact')->queryScalar();
+		$total = $cmd->reset()->select('COUNT(*)')->from('{{contact}}')->queryScalar();
 		$this->assertEquals($total, 1);
 		
 		//select
-		$name = $cmd->reset()->select('name')->from('contact')->limit(1)->queryScalar();
+		$name = $cmd->reset()->select('name')->from('{{contact}}')->limit(1)->queryScalar();
 		$this->assertEquals($name, 'test');
 		
 		//update
-		$rst = $cmd->reset()->update('contact', 
+		$rst = $cmd->reset()->update('{{contact}}', 
 			array(
 				'email' => 'newemail@test.com',
 			),
@@ -67,23 +67,23 @@ class TinyDBTest extends PHPUnit_Framework_TestCase{
 		$this->assertEquals($rst, 1);
 		
 		//select
-		$email = $cmd->reset()->select('email')->from('contact')->limit(1)->queryScalar();
+		$email = $cmd->reset()->select('email')->from('{{contact}}')->limit(1)->queryScalar();
 		$this->assertEquals($email, 'newemail@test.com');
 		
 		//delete
-		$rst = $cmd->reset()->delete('contact', 'name=:name', array(
+		$rst = $cmd->reset()->delete('{{contact}}', 'name=:name', array(
 			':name' => 'test',
 		));
 		
 		$this->assertEquals($rst, 1);
 		
 		//count
-		$rst = $cmd->reset()->select('COUNT(*)')->from('contact')->queryScalar();
+		$rst = $cmd->reset()->select('COUNT(*)')->from('{{contact}}')->queryScalar();
 		$this->assertEquals($rst, 0);
 	}
 	
 	public function testFactory(){
-		$factory = $this->db->factory('@contact');
+		$factory = $this->db->factory('@{{contact}}');
 		
 		//insert
 		$rst = $factory->insert($this->getSampleUser());
@@ -117,7 +117,7 @@ class TinyDBTest extends PHPUnit_Framework_TestCase{
 	}
 	
 	public function testModel(){
-		$factory = $this->db->factory('@contact');
+		$factory = $this->db->factory('@{{contact}}');
 		
 		//insert
 		$model = $factory->create($this->getSampleUser());
