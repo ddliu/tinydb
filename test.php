@@ -1,4 +1,8 @@
 <?php
+/**
+ * @copyright Dong <ddliuhb@gmail.com>
+ * @licence http://maxmars.net/license/MIT
+ */
 require dirname(__FILE__).'/tinydb.php';
 
 class TinyDBTest extends PHPUnit_Framework_TestCase{
