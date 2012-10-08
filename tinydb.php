@@ -789,7 +789,7 @@ class TinyDBFactory
 		$with = $this->with;
 		$columns = explode(',', $with);
 		foreach($columns as $column){
-			if(strpos($column, '.')
+			//if(strpos($column, '.')
 		}
 		$this->with = null;
 	}
