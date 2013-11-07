@@ -1190,7 +1190,7 @@ class TinyDBCommand
         }
         else{
             if(!is_array($fields)){
-                $fields = $this->splitParts($fields);var_dump($fields);exit;
+                $fields = $this->splitParts($fields);
             }
             foreach($fields as $k => $field){
                 if(false === strpos($field, '(')){
