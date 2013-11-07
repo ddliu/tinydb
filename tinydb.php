@@ -1123,7 +1123,7 @@ class TinyDBCommand
     }
     
     protected function splitParts($parts){
-        return preg_split('#^\s*,\s*#', trim($parts), -1, PREG_SPLIT_NO_EMPTY);
+        return preg_split('#\s*,\s*#', trim($parts), -1, PREG_SPLIT_NO_EMPTY);
     }
     
     /**
@@ -1190,7 +1190,7 @@ class TinyDBCommand
         }
         else{
             if(!is_array($fields)){
-                $fields = $this->splitParts($fields);
+                $fields = $this->splitParts($fields);var_dump($fields);exit;
             }
             foreach($fields as $k => $field){
                 if(false === strpos($field, '(')){
