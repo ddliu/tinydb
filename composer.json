@@ -1,0 +1,19 @@
+{
+    "name": "ddliu/tinydb",
+    "description": "Light weight database layer on top of PDO",
+    "version": "0.1.0",
+    "keywords": ["database"],
+    "homepage": "http://codecent.com/tinydb.html",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Liu Dong",
+            "email": "ddliuhb@gmail.com",
+            "homepage": "http://codecent.com",
+            "role": "Developer"
+        }
+    ],
+    "autoload": {
+        "classmap": ["tinydb.php"]
+    }
+}
