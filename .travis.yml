@@ -3,3 +3,4 @@ php:
  - 5.3
 evn: 
  - DB=sqlite
+script: phpunit test.php
