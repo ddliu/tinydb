@@ -12,6 +12,7 @@ class TinyDBTest extends PHPUnit_Framework_TestCase{
         return array(
             'name' => 'user'.$key,
             'email' => 'user'.$key.'@example.com',
+            'point' => $key
         );
     }
     
@@ -21,7 +22,8 @@ class TinyDBTest extends PHPUnit_Framework_TestCase{
                 CREATE TABLE IF NOT EXISTS pre_contact (
                     id INTEGER PRIMARY KEY, 
                     name TEXT, 
-                    email TEXT 
+                    email TEXT,
+                    point INTEGER DEFAULT 0
                 )
              ");
     }
@@ -61,6 +63,7 @@ class TinyDBTest extends PHPUnit_Framework_TestCase{
         $rst = $cmd->reset()->update('{{contact}}', 
             array(
                 'email' => 'newemail@test.com',
+                'point = point + 1',
             ),
             'name=:name',
             array(

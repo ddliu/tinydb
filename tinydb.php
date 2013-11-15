@@ -1681,16 +1681,23 @@ class TinyDBCommand
      * Update table
      * 
      * @param string $table
-     * @param array $values
+     * @param string|array $values
      * @param string|array $conditions
      * @param array $params
      * @return int Rows affected, false on error
      */
     public function update($table, $values, $conditions = '', $params = array()){
         $updates = array();
+        if (!is_array($values)) {
+            $values = array($values);
+        }
         foreach($values as $k => $value){
-            $updates[] = $this->db->quoteColumn($k).' = :'.$k;
-            $params[':'.$k] = $value;
+            if (is_integer($k)) {
+                $updates[] = $value;
+            } else {
+                $updates[] = $this->db->quoteColumn($k).' = :'.$k;
+                $params[':'.$k] = $value;
+            }
         }
         
         $sql = "UPDATE ".$this->db->quoteTable($table).' SET '.implode(', ', $updates);
